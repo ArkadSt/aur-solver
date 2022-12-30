@@ -49,24 +49,26 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
     else:
         subprocess.run(f"git clone https://aur.archlinux.org/{packages_to_install[0]}.git {package_dir}", shell=True)
 
-    for raw_dependency in package_info["results"][0]["Depends"]:
-        dependency = re.match(r'^([^><=]+)', raw_dependency).group()
-        if subprocess.run(f"pacman -Si {dependency} > /dev/null 2>&1",
-                          shell=True).returncode != 0 and get_packages_info([dependency]) == 1:
-            print(f"AUR dependency {dependency}")
-            if not (subprocess.run(f"pacman -Qi {dependency} > /dev/null 2>&1", shell=True).returncode == 0 and (
-                    get_local_version(dependency) == get_remote_version(dependency))):
-                print(f"Installing dependency {dependency}")
-                for dep in install([dependency], "--asdeps"):
-                    try:
-                        print(f"removed {dep} from the queue of {packages_to_install}")
-                        installed_aur_dependencies.append(dep)
-                        packages_to_install.remove(dep)
-                    except ValueError:
-                        pass
-
+    try:
+        for raw_dependency in package_info["results"][0]["Depends"]:
+            dependency = re.match(r'^([^><=]+)', raw_dependency).group()
+            if subprocess.run(f"pacman -Si {dependency} > /dev/null 2>&1",
+                              shell=True).returncode != 0 and get_packages_info([dependency])["resultcount"] == 1:
+                print(f"AUR dependency {dependency}")
+                if not (subprocess.run(f"pacman -Qi {dependency} > /dev/null 2>&1", shell=True).returncode == 0 and (
+                        get_local_version(dependency) == get_remote_version(dependency))):
+                    print(f"Installing dependency {dependency}")
+                    for dep in install([dependency], "--asdeps"):
+                        try:
+                            print(f"removed {dep} from the queue of {packages_to_install}")
+                            installed_aur_dependencies.append(dep)
+                            packages_to_install.remove(dep)
+                        except ValueError:
+                            pass
+    except KeyError:
+        pass
     os.chdir(package_dir)
-    subprocess.run("makepkg -s 2>/dev/null", shell=True)
+    subprocess.run("makepkg -s", shell=True)
     subprocess.run(f"sudo pacman -U {install_options} {packages_to_install[0]}*.pkg.tar.zst", shell=True)
     os.chdir(PWD)
 
