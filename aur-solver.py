@@ -20,7 +20,7 @@ def get_local_version(package: str) -> str:
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode()
 
 
-def get_packages_info(packages: list) -> dict:
+def get_packages_info(packages: list[str]) -> dict:
     url_string = "https://aur.archlinux.org/rpc/?v=5&type=info"
     for package in packages:
         url_string += f"&arg[]={package}"
@@ -31,7 +31,7 @@ def get_remote_version(package: str) -> str:
     return get_packages_info([package])["results"][0]["Version"]
 
 
-def install(packages_to_install: list, install_options: str) -> list:
+def install(packages_to_install: list[str], install_options: str) -> list[str]:
     package_info = get_packages_info(packages_to_install)
     if package_info["resultcount"] != len(packages_to_install):
         for package in packages_to_install:
@@ -51,7 +51,9 @@ def install(packages_to_install: list, install_options: str) -> list:
 
     for raw_dependency in package_info["results"][0]["Depends"]:
         dependency = re.match(r'^([^><=]+)', raw_dependency).group()
-        if not subprocess.run(f"pacman -Si {dependency} > /dev/null 2>&1", shell=True).returncode == 0:
+        if subprocess.run(f"pacman -Si {dependency} > /dev/null 2>&1",
+                          shell=True).returncode != 0 and get_packages_info([dependency]) == 1:
+            print(f"AUR dependency {dependency}")
             if not (subprocess.run(f"pacman -Qi {dependency} > /dev/null 2>&1", shell=True).returncode == 0 and (
                     get_local_version(dependency) == get_remote_version(dependency))):
                 print(f"Installing dependency {dependency}")
@@ -98,6 +100,7 @@ def update():
         case "n":
             print("Abort")
         case _:
+            print("Updating...")
             install(to_be_updated, "")
 
 
@@ -114,13 +117,16 @@ parser.add_argument('action', choices=['install', 'update', 'remove'],
 parser.add_argument('packages', nargs='*', help='Package name(s)')
 args = parser.parse_args()
 
-try:
-    match args.action:
-        case "install":
+match args.action:
+    case "install":
+        if not len(args.packages) == 0:
             install(args.packages, "")
-        case "remove":
+        else:
+            parser.print_help()
+    case "remove":
+        if not len(args.packages) == 0:
             remove(args.packages)
-        case "update":
-            update()
-except IndexError:
-    parser.print_help()
+        else:
+            parser.print_help()
+    case "update":
+        update()
