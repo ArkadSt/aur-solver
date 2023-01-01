@@ -34,10 +34,7 @@ def get_remote_version(package: str) -> str:
 def install(packages_to_install: list[str], install_options: str) -> list[str]:
     package_info = get_packages_info(packages_to_install)
     if package_info["resultcount"] != len(packages_to_install):
-        for package in packages_to_install:
-            if get_packages_info([package])["resultcount"] == 0:
-                print(f"{package} is not in the AUR")
-        sys.exit()
+        sys.exit(f'Packages {[package for package in packages_to_install if get_packages_info([package])["resultcount"] == 0]} are not in the AUR')
 
     installed_aur_dependencies = []
     package_dir = ALL_STUFF + '/' + packages_to_install[0]
@@ -54,13 +51,11 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
             dependency = re.match(r'^([^><=]+)', raw_dependency).group()
             if subprocess.run(f"pacman -Si {dependency} > /dev/null 2>&1",
                               shell=True).returncode != 0 and get_packages_info([dependency])["resultcount"] == 1:
-                print(f"AUR dependency {dependency}")
                 if not (subprocess.run(f"pacman -Qi {dependency} > /dev/null 2>&1", shell=True).returncode == 0 and (
                         get_local_version(dependency) == get_remote_version(dependency))):
-                    print(f"Installing dependency {dependency}")
+                    print(f"Installing AUR dependency {dependency}...")
                     for dep in install([dependency], "--asdeps"):
                         try:
-                            print(f"removed {dep} from the queue of {packages_to_install}")
                             installed_aur_dependencies.append(dep)
                             packages_to_install.remove(dep)
                         except ValueError:
@@ -98,7 +93,7 @@ def update():
         return
 
     print("Do you want to proceed? (Y/n): ", end='')
-    match input():
+    match input().lower():
         case "n":
             print("Abort")
         case _:
