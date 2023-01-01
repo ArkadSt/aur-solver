@@ -41,9 +41,11 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
 
     if os.path.exists(package_dir):
         os.chdir(package_dir)
+        print(f"Directory {os.getcwd()} exists, executing 'git pull'...")
         subprocess.run("git pull", shell=True)
         os.chdir(PWD)
     else:
+        print("Cloning repository...")
         subprocess.run(f"git clone https://aur.archlinux.org/{packages_to_install[0]}.git {package_dir}", shell=True)
 
     try:
@@ -53,7 +55,7 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
                               shell=True).returncode != 0 and get_packages_info([dependency])["resultcount"] == 1:
                 if not (subprocess.run(f"pacman -Qi {dependency} > /dev/null 2>&1", shell=True).returncode == 0 and (
                         get_local_version(dependency) == get_remote_version(dependency))):
-                    print(f"Installing AUR dependency {dependency}...")
+                    print(f"Installing dependency {dependency} from AUR...")
                     for dep in install([dependency], "--asdeps"):
                         try:
                             installed_aur_dependencies.append(dep)
@@ -62,7 +64,20 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
                             pass
     except KeyError:
         pass
+
     os.chdir(package_dir)
+
+    pgp_keys: list[str] = subprocess.run("makepkg --printsrcinfo | awk '/validpgpkeys/{print $3}'", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split()
+    for pgp in pgp_keys:
+        if subprocess.run("gpg --list-keys | awk '/" + pgp + "/{print $1}'", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode() == "":
+            print(f"Import PGP key {pgp}? (Y/n): ", end='')
+            match input().lower():
+                case "n":
+                    print("Not importing key")
+                case _:
+                    print("Importing key...")
+                    subprocess.run(f"gpg --recv-keys {pgp}", shell=True)
+
     subprocess.run("makepkg -s", shell=True)
     subprocess.run(f"sudo pacman -U {install_options} {packages_to_install[0]}*.pkg.tar.zst", shell=True)
     os.chdir(PWD)
