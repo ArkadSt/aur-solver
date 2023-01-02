@@ -34,7 +34,8 @@ def get_remote_version(package: str) -> str:
 def install(packages_to_install: list[str], install_options: str) -> list[str]:
     package_info = get_packages_info(packages_to_install)
     if package_info["resultcount"] != len(packages_to_install):
-        sys.exit(f'Packages {[package for package in packages_to_install if get_packages_info([package])["resultcount"] == 0]} are not in the AUR')
+        sys.exit(
+            f'Packages {[package for package in packages_to_install if get_packages_info([package])["resultcount"] == 0]} are not in the AUR')
 
     installed_aur_dependencies = []
     package_dir = ALL_STUFF + '/' + packages_to_install[0]
@@ -67,9 +68,11 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
 
     os.chdir(package_dir)
 
-    pgp_keys: list[str] = subprocess.run("makepkg --printsrcinfo | awk '/validpgpkeys/{print $3}'", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split()
+    pgp_keys: list[str] = subprocess.run("makepkg --printsrcinfo | awk '/validpgpkeys/{print $3}'", shell=True,
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split()
     for pgp in pgp_keys:
-        if subprocess.run("gpg --list-keys | awk '/" + pgp + "/{print $1}'", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode() == "":
+        if subprocess.run("gpg --list-keys | awk '/" + pgp + "/{print $1}'", shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE).stdout.decode() == "":
             print(f"Import PGP key {pgp}? (Y/n): ", end='')
             match input().lower():
                 case "n":
@@ -83,8 +86,8 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
     os.chdir(PWD)
 
     if len(packages_to_install) > 1:
-        packages_to_install.remove(packages_to_install[0])
-        return installed_aur_dependencies + [packages_to_install[0]] + install(packages_to_install, install_options)
+        return installed_aur_dependencies + [packages_to_install[0]] + install(
+            [package for package in packages_to_install if package != packages_to_install[0]], install_options)
     else:
         return installed_aur_dependencies + [packages_to_install[0]]
 
