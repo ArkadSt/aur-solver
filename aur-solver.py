@@ -8,8 +8,8 @@ import json
 import argparse
 import sys
 
-ALL_STUFF = os.path.expanduser('~') + "/.aur-solver"
-PWD = os.getcwd()
+ALL_STUFF: str = os.path.expanduser('~') + "/.aur-solver"
+PWD: str = os.getcwd()
 
 if not os.path.exists(ALL_STUFF):
     os.makedirs(ALL_STUFF)
@@ -32,13 +32,13 @@ def get_remote_version(package: str) -> str:
 
 
 def install(packages_to_install: list[str], install_options: str) -> list[str]:
-    package_info = get_packages_info(packages_to_install)
+    package_info: dict = get_packages_info(packages_to_install)
     if package_info["resultcount"] != len(packages_to_install):
         sys.exit(
             f'Packages {[package for package in packages_to_install if get_packages_info([package])["resultcount"] == 0]} are not in the AUR')
 
-    installed_aur_dependencies = []
-    package_dir = ALL_STUFF + '/' + packages_to_install[0]
+    installed_aur_dependencies: list = []
+    package_dir: str = ALL_STUFF + '/' + packages_to_install[0]
 
     if os.path.exists(package_dir):
         os.chdir(package_dir)
@@ -50,7 +50,7 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
         subprocess.run(f"git clone https://aur.archlinux.org/{packages_to_install[0]}.git {package_dir}", shell=True)
 
     try:
-        for raw_dependency in package_info["results"][0]["Depends"]:
+        for raw_dependency in package_info["results"][0]["Depends"] + package_info["results"][0]["MakeDepends"]:
             dependency = re.match(r'^([^><=]+)', raw_dependency).group()
             if subprocess.run(f"pacman -Si {dependency} > /dev/null 2>&1",
                               shell=True).returncode != 0 and get_packages_info([dependency])["resultcount"] == 1:
@@ -81,8 +81,7 @@ def install(packages_to_install: list[str], install_options: str) -> list[str]:
                     print("Importing key...")
                     subprocess.run(f"gpg --recv-keys {pgp}", shell=True)
 
-    subprocess.run("makepkg -s", shell=True)
-    subprocess.run(f"sudo pacman -U {install_options} {packages_to_install[0]}*.pkg.tar.zst", shell=True)
+    subprocess.run(f"makepkg -si {install_options}", shell=True)
     os.chdir(PWD)
 
     if len(packages_to_install) > 1:
@@ -97,26 +96,31 @@ def update():
                                                 stderr=subprocess.PIPE).stdout.decode().split()
     packages_info = get_packages_info(all_installed_aur_packages)
 
-    to_be_updated = []
-    print("To be updated: ")
+    flagged_out_of_date: list = []
+    to_be_updated: list = []
+    to_be_updated_output: str = ""
+
     for i in range(len(all_installed_aur_packages)):
         package = all_installed_aur_packages[i]
         remote_version = packages_info["results"][i]["Version"]
         if not (get_local_version(package) == remote_version):
-            print(f"{package} ({get_local_version(package)} => {remote_version})")
+            to_be_updated_output += f"{package} ({get_local_version(package)} => {remote_version})\n"
             to_be_updated.append(package)
+        if packages_info["results"][i]["OutOfDate"] is not None:
+            flagged_out_of_date.append(package)
 
-    if not to_be_updated:
+    print(f"Flagged out-of-date: {', '.join(flagged_out_of_date) if flagged_out_of_date else 'None'}")
+    print("To be updated: ")
+    if to_be_updated:
+        print(to_be_updated_output + "Do you want to proceed? (Y/n): ", end='')
+        match input().lower():
+            case "n":
+                print("Abort")
+            case _:
+                print("Updating...")
+                install(to_be_updated, "")
+    else:
         print("None. Your AUR packages are up to date")
-        return
-
-    print("Do you want to proceed? (Y/n): ", end='')
-    match input().lower():
-        case "n":
-            print("Abort")
-        case _:
-            print("Updating...")
-            install(to_be_updated, "")
 
 
 def remove(packages: list):
